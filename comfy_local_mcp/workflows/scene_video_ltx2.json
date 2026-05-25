@@ -1,7 +1,7 @@
 {
   "_meta": {
     "name": "scene_video_ltx2",
-    "description": "LTX-2.3 GGUF two-stage text-to-video, portrait 9:16 (768x1344), 121 frames @ 24fps. Verified local on RTX 4080 16GB. Stage1 base model cfg=4 LTXVScheduler (8 steps -- the quality/speed sweet spot: ~2.5min/5s, ~5.2min/10s, vs 20 steps for marginal gain); stage2 distilled-LoRA cfg=1 refine + x2 latent upscale. Override `steps` to tune stage-1.",
+    "description": "LTX-2.3 GGUF two-stage IMAGE-to-video by default (start frame = the supplied image_input path; set i2v_bypass=true for pure text-to-video), portrait 9:16 (768x1344), 121 frames @ 24fps. Verified local on RTX 4080 16GB. Stage1 base model cfg=4 LTXVScheduler (8 steps -- the quality/speed sweet spot: ~2.5min/5s, ~5.2min/10s, vs 20 steps for marginal gain); stage2 distilled-LoRA cfg=1 refine + x2 latent upscale. Override `steps` to tune stage-1.",
     "required_models": [
       "unet/ltx-2.3-22b-dev-Q3_K_S.gguf",
       "text_encoders/gemma-3-12b-it-Q4_K_M.gguf",
@@ -28,7 +28,7 @@
       "CreateVideo",
       "SaveVideo"
     ],
-    "notes": "CRITICAL: DualCLIPLoaderGGUF clip_name2 MUST be the embeddings_connectors file (the learned LTX connector), NOT text_projection -- wrong clip2 yields pure noise. clip_name1 is the Gemma GGUF. Source: workflow embedded in unsloth/LTX-2.3-GGUF unsloth_flowers.mp4. Requires the kornia 'pad' shim in ComfyUI-LTXVideo/pyramid_blending.py for the pack to load."
+    "notes": "I2V: nodes 60(VHS_LoadImagePath)->61(LTXVPreprocess)->63(LTXVImgToVideoConditionOnly) feed the stage-1 video_latent into node 15 (LTXVConcatAVLatent), anchoring the start frame to image_input. Node 63 takes the stage-1 latent (node 14) as its shape reference (x0.5 dims, 384x672) and aligns the image to it. i2v_strength (63.strength, default 0.7) controls conditioning weight; i2v_bypass=true (62.value) reverts to T2V (passes the empty latent through). The Flux still is 768x1344; node 63 resamples to the latent shape -- if dims error, set 60.custom_width/custom_height to the stage-1 dims. CRITICAL: DualCLIPLoaderGGUF clip_name2 MUST be the embeddings_connectors file (the learned LTX connector), NOT text_projection -- wrong clip2 yields pure noise. clip_name1 is the Gemma GGUF. Source: workflow embedded in unsloth/LTX-2.3-GGUF unsloth_flowers.mp4. Requires the kornia 'pad' shim in ComfyUI-LTXVideo/pyramid_blending.py for the pack to load."
   },
   "_overrides": {
     "prompt": "5.inputs.text",
@@ -45,7 +45,10 @@
     "ltx2_video_vae": "2.inputs.vae_name",
     "ltx2_audio_vae": "1.inputs.vae_name",
     "ltx2_distilled_lora": "27.inputs.lora_name",
-    "ltx2_upscaler": "26.inputs.model_name"
+    "ltx2_upscaler": "26.inputs.model_name",
+    "image_input": "60.inputs.image",
+    "i2v_strength": "63.inputs.strength",
+    "i2v_bypass": "62.inputs.value"
   },
   "graph": {
     "1": {
@@ -176,7 +179,7 @@
     "15": {
       "inputs": {
         "video_latent": [
-          "14",
+          "63",
           0
         ],
         "audio_latent": [
@@ -482,6 +485,52 @@
         "type": "ltxv"
       },
       "class_type": "DualCLIPLoaderGGUF"
+    },
+    "60": {
+      "inputs": {
+        "image": "",
+        "custom_width": 0,
+        "custom_height": 0
+      },
+      "class_type": "VHS_LoadImagePath"
+    },
+    "61": {
+      "inputs": {
+        "image": [
+          "60",
+          0
+        ],
+        "img_compression": 35
+      },
+      "class_type": "LTXVPreprocess"
+    },
+    "62": {
+      "inputs": {
+        "value": false
+      },
+      "class_type": "PrimitiveBoolean"
+    },
+    "63": {
+      "inputs": {
+        "vae": [
+          "2",
+          0
+        ],
+        "image": [
+          "61",
+          0
+        ],
+        "latent": [
+          "14",
+          0
+        ],
+        "strength": 0.7,
+        "bypass": [
+          "62",
+          0
+        ]
+      },
+      "class_type": "LTXVImgToVideoConditionOnly"
     }
   }
 }
