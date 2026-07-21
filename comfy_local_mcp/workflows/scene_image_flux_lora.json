@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "name": "scene_image_flux_lora",
+    "description": "Flux.1-dev Q4 GGUF with a single style LoRA (LoraLoaderModelOnly between the GGUF unet and the sampler). Default LoRA: uiux.safetensors (UI/UX design generator, trigger 'uiux. [interface elements]. [color scheme]. [background].'). Same proven fp8-T5 stack as scene_image_flux.",
+    "required_models": [
+      "unet_gguf/flux1-dev-Q4_K_S.gguf",
+      "clip/clip_l.safetensors",
+      "clip/t5xxl_fp8_e4m3fn.safetensors",
+      "vae/flux_vae.safetensors",
+      "loras/uiux.safetensors"
+    ],
+    "required_nodes": [
+      "UnetLoaderGGUF",
+      "LoraLoaderModelOnly",
+      "DualCLIPLoader",
+      "VAELoader",
+      "FluxGuidance",
+      "ConditioningZeroOut",
+      "KSampler",
+      "VAEDecode",
+      "SaveImage"
+    ],
+    "notes": "Model-only LoRA application (no CLIP patch) -- the standard pattern for Flux style LoRAs on the GGUF stack. Override lora_name/lora_strength to test other LoRAs (e.g. equirectangular_flux_lora for skyboxes)."
+  },
+  "_overrides": {
+    "prompt": "6.inputs.text",
+    "seed": "13.inputs.seed",
+    "width": "5.inputs.width",
+    "height": "5.inputs.height",
+    "steps": "13.inputs.steps",
+    "guidance": "17.inputs.guidance",
+    "lora_name": "14.inputs.lora_name",
+    "lora_strength": "14.inputs.strength_model",
+    "flux_unet": "12.inputs.unet_name",
+    "clip_l": "11.inputs.clip_name1",
+    "t5": "11.inputs.clip_name2",
+    "flux_vae": "10.inputs.vae_name"
+  },
+  "graph": {
+    "5": {
+      "class_type": "EmptySD3LatentImage",
+      "inputs": { "width": 1344, "height": 768, "batch_size": 1 }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": "uiux. modern app interface. warm cream and orange. cream background.", "clip": ["11", 0] }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["13", 0], "vae": ["10", 0] }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "comfy_uiux_flux", "images": ["8", 0] }
+    },
+    "10": {
+      "class_type": "VAELoader",
+      "inputs": { "vae_name": "flux_vae.safetensors" }
+    },
+    "11": {
+      "class_type": "DualCLIPLoader",
+      "inputs": {
+        "clip_name1": "clip_l.safetensors",
+        "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+        "type": "flux",
+        "device": "default"
+      }
+    },
+    "12": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": { "unet_name": "flux1-dev-Q4_K_S.gguf" }
+    },
+    "14": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "uiux.safetensors",
+        "strength_model": 1.0,
+        "model": ["12", 0]
+      }
+    },
+    "13": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 20,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1.0,
+        "model": ["14", 0],
+        "positive": ["17", 0],
+        "negative": ["16", 0],
+        "latent_image": ["5", 0]
+      }
+    },
+    "16": {
+      "class_type": "ConditioningZeroOut",
+      "inputs": { "conditioning": ["6", 0] }
+    },
+    "17": {
+      "class_type": "FluxGuidance",
+      "inputs": { "guidance": 3.5, "conditioning": ["6", 0] }
+    }
+  }
+}
