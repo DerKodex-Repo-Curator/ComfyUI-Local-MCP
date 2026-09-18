@@ -1,0 +1,174 @@
+{
+  "_meta": {
+    "name": "scene_image_flux_img2img",
+    "description": "Image-to-image restyle via Flux.1-dev Q4 GGUF. Loads a source image, VAE-encodes it, and partially denoises (denoise<1) so the source composition is preserved while the prompt restyles it. Proven local stack on RTX 4080.",
+    "required_models": [
+      "unet_gguf/flux1-dev-Q4_K_S.gguf",
+      "clip/clip_l.safetensors",
+      "clip/t5xxl_fp8_e4m3fn.safetensors",
+      "vae/flux_vae.safetensors"
+    ],
+    "required_nodes": [
+      "LoadImage",
+      "ImageScale",
+      "VAEEncode",
+      "UnetLoaderGGUF",
+      "DualCLIPLoader",
+      "VAELoader",
+      "FluxGuidance",
+      "ConditioningZeroOut",
+      "KSampler",
+      "VAEDecode",
+      "SaveImage"
+    ],
+    "notes": "denoise (KSampler) is the img2img strength: ~0.4 keeps the source faithfully, ~0.7 restyles heavily. 'image' is a filename in ComfyUI/input. width/height set the working resolution (keep the source aspect; multiples of 16)."
+  },
+  "_overrides": {
+    "prompt": "6.inputs.text",
+    "seed": "13.inputs.seed",
+    "steps": "13.inputs.steps",
+    "denoise": "13.inputs.denoise",
+    "guidance": "17.inputs.guidance",
+    "image": "4.inputs.image",
+    "width": "20.inputs.width",
+    "height": "20.inputs.height",
+    "flux_unet": "12.inputs.unet_name",
+    "clip_l": "11.inputs.clip_name1",
+    "t5": "11.inputs.clip_name2",
+    "flux_vae": "10.inputs.vae_name"
+  },
+  "graph": {
+    "4": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "heart_bw.png"
+      }
+    },
+    "20": {
+      "class_type": "ImageScale",
+      "inputs": {
+        "upscale_method": "lanczos",
+        "width": 1024,
+        "height": 736,
+        "crop": "disabled",
+        "image": [
+          "4",
+          0
+        ]
+      }
+    },
+    "5": {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "20",
+          0
+        ],
+        "vae": [
+          "10",
+          0
+        ]
+      }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "clean minimalist line art, a single heart outline with cursive handwritten letters beside it, smooth even bold black ink strokes on a pure white background, crisp vector-style illustration, high contrast, elegant, simple",
+        "clip": [
+          "11",
+          0
+        ]
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "13",
+          0
+        ],
+        "vae": [
+          "10",
+          0
+        ]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "heart_clean_flux",
+        "images": [
+          "8",
+          0
+        ]
+      }
+    },
+    "10": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "flux_vae.safetensors"
+      }
+    },
+    "11": {
+      "class_type": "DualCLIPLoader",
+      "inputs": {
+        "clip_name1": "clip_l.safetensors",
+        "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+        "type": "flux",
+        "device": "default"
+      }
+    },
+    "12": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": {
+        "unet_name": "flux1-dev-Q4_K_S.gguf"
+      }
+    },
+    "13": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 20,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 0.6,
+        "model": [
+          "12",
+          0
+        ],
+        "positive": [
+          "17",
+          0
+        ],
+        "negative": [
+          "16",
+          0
+        ],
+        "latent_image": [
+          "5",
+          0
+        ]
+      }
+    },
+    "16": {
+      "class_type": "ConditioningZeroOut",
+      "inputs": {
+        "conditioning": [
+          "6",
+          0
+        ]
+      }
+    },
+    "17": {
+      "class_type": "FluxGuidance",
+      "inputs": {
+        "guidance": 3.5,
+        "conditioning": [
+          "6",
+          0
+        ]
+      }
+    }
+  }
+}

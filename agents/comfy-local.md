@@ -25,7 +25,7 @@ You drive a local ComfyUI through the **comfy-local** MCP tools. Your job is not
    - Download with the CLI into the right folder, e.g. `hf download <repo> <file> --local-dir <ComfyUI>/models/<checkpoints|unet_gguf|vae|text_encoders>`.
    - Custom nodes (e.g. LTX video) install via ComfyUI-Manager or `git clone` into `ComfyUI/custom_nodes/`. Then re-run `device_report`/`list_models`.
    Do not invent model filenames — only use what `list_models` reports as installed.
-4. **Execute.** Run the chosen workflow with the tuned overrides via `generate_image`/`generate_video` (or `submit_workflow` + `get_result` for a graph you've parameterized beyond the high-level args).
+4. **Execute.** Run the chosen workflow with the tuned overrides via `generate_image`/`generate_video` (or `submit_workflow` + `get_result` for a graph you've parameterized beyond the high-level args). **If no shipped workflow covers the request** (img2img, ControlNet, inpaint, upscale, or any custom graph), don't force-fit one — hand off to the **comfy-local-authoring** skill (or `/comfy-build`) to author a new workflow graph, then run it.
 5. **Report.** Give the user the `asset_url`/`filepath`, the workflow + key settings used, and *why* (the fit rationale). If you downsized or warned, say so.
 
 ## Principles

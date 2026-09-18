@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "name": "skybox_flux_equirect",
+    "description": "TRUE equirectangular 360 skybox via Flux.1-dev Q4 GGUF + MultiTrickFox Equirectangular-v3 LoRA. Default 2048x1024 (2:1). Output is a monoscopic equirectangular panorama for a skybox sphere / visionOS immersive skydome / Valinor Quest EnvironmentManager.",
+    "required_models": [
+      "unet_gguf/flux1-dev-Q4_K_S.gguf",
+      "clip/clip_l.safetensors",
+      "clip/t5xxl_fp8_e4m3fn.safetensors",
+      "vae/flux_vae.safetensors",
+      "loras/equirectangular_flux_lora_v3_000003072.safetensors"
+    ],
+    "required_nodes": [
+      "UnetLoaderGGUF",
+      "LoraLoaderModelOnly",
+      "DualCLIPLoader",
+      "VAELoader",
+      "FluxGuidance",
+      "ConditioningZeroOut",
+      "KSampler",
+      "VAEDecode",
+      "SaveImage"
+    ],
+    "notes": "Trigger phrase 'equirectangular 360 degree panorama' MUST be in the prompt (caller supplies it). LoRA trained for 2:1 aspect; use 1024x512, 1536x768, or 2048x1024. Flux CFG 1.0 + FluxGuidance, negative zeroed. LoRA is model-only (unet); Flux text encoders are untouched. lora_strength ~0.8-1.0. Seam: the v3 LoRA is trained toward seamless L/R wrap; if a seam remains, follow with a circular-padding pass (ComfyUI-DiT360) or shift+inpaint."
+  },
+  "_overrides": {
+    "prompt": "6.inputs.text",
+    "seed": "13.inputs.seed",
+    "width": "5.inputs.width",
+    "height": "5.inputs.height",
+    "steps": "13.inputs.steps",
+    "lora_strength": "14.inputs.strength_model",
+    "lora_name": "14.inputs.lora_name",
+    "flux_unet": "12.inputs.unet_name",
+    "clip_l": "11.inputs.clip_name1",
+    "t5": "11.inputs.clip_name2",
+    "flux_vae": "10.inputs.vae_name"
+  },
+  "graph": {
+    "5": {
+      "class_type": "EmptySD3LatentImage",
+      "inputs": {
+        "width": 2048,
+        "height": 1024,
+        "batch_size": 1
+      }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "equirectangular 360 degree panorama, immersive environment",
+        "clip": [
+          "11",
+          0
+        ]
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "13",
+          0
+        ],
+        "vae": [
+          "10",
+          0
+        ]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "comfy_skybox_equirect",
+        "images": [
+          "8",
+          0
+        ]
+      }
+    },
+    "10": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "flux_vae.safetensors"
+      }
+    },
+    "11": {
+      "class_type": "DualCLIPLoader",
+      "inputs": {
+        "clip_name1": "clip_l.safetensors",
+        "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+        "type": "flux",
+        "device": "default"
+      }
+    },
+    "12": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": {
+        "unet_name": "flux1-dev-Q4_K_S.gguf"
+      }
+    },
+    "14": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "model": [
+          "12",
+          0
+        ],
+        "lora_name": "equirectangular_flux_lora_v3_000003072.safetensors",
+        "strength_model": 0.9
+      }
+    },
+    "13": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 20,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1.0,
+        "model": [
+          "14",
+          0
+        ],
+        "positive": [
+          "17",
+          0
+        ],
+        "negative": [
+          "16",
+          0
+        ],
+        "latent_image": [
+          "5",
+          0
+        ]
+      }
+    },
+    "16": {
+      "class_type": "ConditioningZeroOut",
+      "inputs": {
+        "conditioning": [
+          "6",
+          0
+        ]
+      }
+    },
+    "17": {
+      "class_type": "FluxGuidance",
+      "inputs": {
+        "guidance": 3.5,
+        "conditioning": [
+          "6",
+          0
+        ]
+      }
+    }
+  }
+}

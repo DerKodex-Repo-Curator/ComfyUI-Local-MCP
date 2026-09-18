@@ -5,7 +5,7 @@
     "required_models": [
       "unet_gguf/flux1-dev-Q4_K_S.gguf",
       "clip/clip_l.safetensors",
-      "clip/t5xxl_fp16.safetensors",
+      "clip/t5xxl_fp8_e4m3fn.safetensors",
       "vae/flux_vae.safetensors"
     ],
     "required_nodes": [
@@ -26,6 +26,7 @@
     "width": "5.inputs.width",
     "height": "5.inputs.height",
     "steps": "13.inputs.steps",
+    "guidance": "17.inputs.guidance",
     "flux_unet": "12.inputs.unet_name",
     "clip_l": "11.inputs.clip_name1",
     "t5": "11.inputs.clip_name2",
@@ -83,8 +84,9 @@
       "class_type": "DualCLIPLoader",
       "inputs": {
         "clip_name1": "clip_l.safetensors",
-        "clip_name2": "t5xxl_fp16.safetensors",
-        "type": "flux"
+        "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+        "type": "flux",
+        "device": "default"
       }
     },
     "12": {

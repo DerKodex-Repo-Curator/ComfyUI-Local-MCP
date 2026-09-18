@@ -1,0 +1,189 @@
+{
+  "_meta": {
+    "name": "skybox_flux_equirect_img2img",
+    "description": "Image-to-image equirectangular 360 skybox via Flux.1-dev Q4 GGUF + MultiTrickFox Equirectangular-v3 LoRA. Loads a style/geometry source image, VAE-encodes it onto the 2:1 canvas, and partially denoises so the source's style (and, at low denoise, composition) carries into a true equirect panorama. Two uses: (a) restyle an existing equirect at denoise ~0.4-0.6 (geometry donor), (b) re-form a rectilinear style-lock image into a pano at denoise ~0.6-0.75 (style anchor; composition re-forms under the LoRA).",
+    "required_models": [
+      "unet_gguf/flux1-dev-Q4_K_S.gguf",
+      "clip/clip_l.safetensors",
+      "clip/t5xxl_fp8_e4m3fn.safetensors",
+      "vae/flux_vae.safetensors",
+      "loras/equirectangular_flux_lora_v3_000003072.safetensors"
+    ],
+    "required_nodes": [
+      "LoadImage",
+      "ImageScale",
+      "VAEEncode",
+      "UnetLoaderGGUF",
+      "LoraLoaderModelOnly",
+      "DualCLIPLoader",
+      "VAELoader",
+      "FluxGuidance",
+      "ConditioningZeroOut",
+      "KSampler",
+      "VAEDecode",
+      "SaveImage"
+    ],
+    "notes": "Trigger phrase 'equirectangular 360 degree panorama' MUST lead the prompt. 'image' is a filename in ComfyUI/input. denoise is the restyle strength: ~0.4 faithful to source, ~0.7 heavy re-form. A second LoraLoaderModelOnly can be chained after node 14 for a style LoRA (e.g. liminal) once installed - add node 15 with model:[\"14\",0] and repoint 13.inputs.model to [\"15\",0]. Follow output with seam_fix.py; img2img weakens the LoRA's seamless-wrap tendency."
+  },
+  "_overrides": {
+    "prompt": "6.inputs.text",
+    "seed": "13.inputs.seed",
+    "steps": "13.inputs.steps",
+    "denoise": "13.inputs.denoise",
+    "guidance": "17.inputs.guidance",
+    "image": "4.inputs.image",
+    "width": "20.inputs.width",
+    "height": "20.inputs.height",
+    "lora_strength": "14.inputs.strength_model",
+    "lora_name": "14.inputs.lora_name",
+    "flux_unet": "12.inputs.unet_name",
+    "clip_l": "11.inputs.clip_name1",
+    "t5": "11.inputs.clip_name2",
+    "flux_vae": "10.inputs.vae_name"
+  },
+  "graph": {
+    "4": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "style_source.png"
+      }
+    },
+    "20": {
+      "class_type": "ImageScale",
+      "inputs": {
+        "upscale_method": "lanczos",
+        "width": 2048,
+        "height": 1024,
+        "crop": "disabled",
+        "image": [
+          "4",
+          0
+        ]
+      }
+    },
+    "5": {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "20",
+          0
+        ],
+        "vae": [
+          "10",
+          0
+        ]
+      }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "equirectangular 360 degree panorama, immersive environment",
+        "clip": [
+          "11",
+          0
+        ]
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "13",
+          0
+        ],
+        "vae": [
+          "10",
+          0
+        ]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "comfy_skybox_i2i",
+        "images": [
+          "8",
+          0
+        ]
+      }
+    },
+    "10": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "flux_vae.safetensors"
+      }
+    },
+    "11": {
+      "class_type": "DualCLIPLoader",
+      "inputs": {
+        "clip_name1": "clip_l.safetensors",
+        "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+        "type": "flux",
+        "device": "default"
+      }
+    },
+    "12": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": {
+        "unet_name": "flux1-dev-Q4_K_S.gguf"
+      }
+    },
+    "14": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "model": [
+          "12",
+          0
+        ],
+        "lora_name": "equirectangular_flux_lora_v3_000003072.safetensors",
+        "strength_model": 0.9
+      }
+    },
+    "13": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 0,
+        "steps": 20,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 0.6,
+        "model": [
+          "14",
+          0
+        ],
+        "positive": [
+          "17",
+          0
+        ],
+        "negative": [
+          "16",
+          0
+        ],
+        "latent_image": [
+          "5",
+          0
+        ]
+      }
+    },
+    "16": {
+      "class_type": "ConditioningZeroOut",
+      "inputs": {
+        "conditioning": [
+          "6",
+          0
+        ]
+      }
+    },
+    "17": {
+      "class_type": "FluxGuidance",
+      "inputs": {
+        "guidance": 3.5,
+        "conditioning": [
+          "6",
+          0
+        ]
+      }
+    }
+  }
+}

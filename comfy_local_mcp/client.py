@@ -119,31 +119,18 @@ class ComfyClient:
     async def wait_for_result(self, prompt_id: str) -> JobResult:
         """Block until the job completes and return its primary asset.
 
-        Resilient to WebSocket drops on long renders: ComfyUI keeps executing a
-        submitted job server-side even if the progress WS closes (which happens
-        on multi-minute video renders). If the WS errors or ends before the
-        completion event, fall back to polling ``/history/{prompt_id}`` so a
-        transient WS drop no longer reports a false failure (and discards a
-        video ComfyUI actually produced).
+        Completion is detected by polling ``/history/{prompt_id}`` rather than by
+        waiting on the progress WebSocket. ComfyUI keeps executing a submitted job
+        server-side regardless of whether anything is listening on the WS, and a WS
+        that connects *after* the job has already finished (e.g. ``get_result``
+        called on a job that completed quickly, or any submit→wait timing gap)
+        receives no completion event and blocks forever with no timeout. History
+        polling has neither failure mode: it sees the job whether it is still
+        running, already done, or errored. Live-progress callers can still use
+        ``stream()`` directly; this method only needs the terminal result.
         """
-        completed = False
-        try:
-            async for event in self.stream(prompt_id):
-                if event["stage"] == "error":
-                    raise ComfyError(event.get("kind", "error"), event.get("message", "job failed"), prompt_id)
-                if event["stage"] in {"executed", "completed"}:
-                    completed = True
-                    break
-        except ComfyError:
-            raise
-        except Exception as exc:  # noqa: BLE001 — any WS failure (close/timeout/reset)
-            logger.warning(
-                "comfy progress WS ended early for prompt_id=%s (%s); polling /history",
-                prompt_id, exc,
-            )
-        if not completed:
-            # WS dropped or ended without a completion event — confirm via history.
-            await self._poll_history_until_done(prompt_id)
+        # Raises ComfyError on execution error or timeout (bounded by timeout_s).
+        await self._poll_history_until_done(prompt_id)
         return await self.fetch_result(prompt_id)
 
     async def _poll_history_until_done(self, prompt_id: str, poll_interval: float = 3.0) -> None:
@@ -178,35 +165,46 @@ class ComfyClient:
                     raise ComfyError("timeout", f"job did not complete within {self.timeout_s}s", prompt_id)
                 await asyncio.sleep(poll_interval)
 
-    async def fetch_result(self, prompt_id: str) -> JobResult:
-        """Fetch the primary output asset metadata for a completed job."""
+    async def fetch_result(self, prompt_id: str, retry_s: float = 10.0) -> JobResult:
+        """Fetch the primary output asset metadata for a completed job.
+
+        ``wait_for_result`` breaks out of the progress stream on the first
+        ``executed`` event, which for a fast/cached graph can fire before the
+        SaveImage node's output is registered in ``/history``. So if the entry
+        has no outputs yet, briefly re-poll (up to ``retry_s``) before failing,
+        rather than reporting a false "no outputs" on a job that did succeed.
+        """
         if self.transport == "rust":
             history_url = f"{self.base_url}/comfy/history/{prompt_id}"
         else:
             history_url = f"{self.base_url}/history/{prompt_id}"
+        deadline = asyncio.get_event_loop().time() + retry_s
         async with httpx.AsyncClient(timeout=30.0) as http:
-            resp = await http.get(history_url)
-        if resp.status_code >= 400:
-            raise ComfyError("http", f"history fetch failed {resp.status_code}", prompt_id)
-        history = resp.json()
-        entry = history.get(prompt_id) if isinstance(history, dict) and prompt_id in history else history
-        outputs = (entry or {}).get("outputs") or {}
-        for node_outputs in outputs.values():
-            for asset_kind in ("images", "gifs", "videos"):
-                items = node_outputs.get(asset_kind) or []
-                if items:
-                    item = items[0]
-                    filename = item.get("filename") or "output.png"
-                    subfolder = item.get("subfolder", "")
-                    asset_url = self._asset_url(filename, subfolder, item.get("type", "output"))
-                    return JobResult(
-                        prompt_id=prompt_id,
-                        asset_url=asset_url,
-                        local_path=None,
-                        filename=filename,
-                        metadata={"history_entry": entry, "node_outputs": node_outputs},
-                    )
-        raise ComfyError("invalid_response", "history entry contained no image/video outputs", prompt_id)
+            while True:
+                resp = await http.get(history_url)
+                if resp.status_code >= 400:
+                    raise ComfyError("http", f"history fetch failed {resp.status_code}", prompt_id)
+                history = resp.json()
+                entry = history.get(prompt_id) if isinstance(history, dict) and prompt_id in history else history
+                outputs = (entry or {}).get("outputs") or {}
+                for node_outputs in outputs.values():
+                    for asset_kind in ("images", "gifs", "videos"):
+                        items = node_outputs.get(asset_kind) or []
+                        if items:
+                            item = items[0]
+                            filename = item.get("filename") or "output.png"
+                            subfolder = item.get("subfolder", "")
+                            asset_url = self._asset_url(filename, subfolder, item.get("type", "output"))
+                            return JobResult(
+                                prompt_id=prompt_id,
+                                asset_url=asset_url,
+                                local_path=None,
+                                filename=filename,
+                                metadata={"history_entry": entry, "node_outputs": node_outputs},
+                            )
+                if asyncio.get_event_loop().time() > deadline:
+                    raise ComfyError("invalid_response", "history entry contained no image/video outputs", prompt_id)
+                await asyncio.sleep(0.5)
 
     async def download(self, result: JobResult, dest_dir: str | None = None) -> str:
         """Download the result asset to ``dest_dir`` and return the local path."""

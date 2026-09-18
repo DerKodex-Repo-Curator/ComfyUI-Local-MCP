@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "name": "scene_logo_flux_controlnet",
+    "description": "Sketch -> professional logo. Flux.1-dev Q4 GGUF txt2img guided by a Flux Union-Pro-2.0 ControlNet in canny mode: the source drawing locks composition/structure while the prompt restyles it into a clean designed mark. Allows reinterpretation (full denoise).",
+    "required_models": [
+      "unet_gguf/flux1-dev-Q4_K_S.gguf",
+      "clip/clip_l.safetensors",
+      "clip/t5xxl_fp16.safetensors",
+      "vae/flux_vae.safetensors",
+      "controlnet/flux-union-pro-2.0.safetensors"
+    ],
+    "required_nodes": [
+      "LoadImage", "ImageScale", "Canny", "ControlNetLoader",
+      "SetShakkerLabsUnionControlNetType", "ControlNetApplyAdvanced",
+      "UnetLoaderGGUF", "DualCLIPLoader", "VAELoader", "CLIPTextEncode",
+      "FluxGuidance", "ConditioningZeroOut", "EmptySD3LatentImage",
+      "KSampler", "VAEDecode", "SaveImage"
+    ],
+    "notes": "control_strength (node 33) + cn_end (end_percent) trade structure vs creative freedom: strength ~0.4 / end ~0.6 = looser reinterpretation, ~0.8 / 0.9 = faithful. Flux Q4+T5+CN exceed 16GB so ComfyUI offloads (slower). 'image' is a filename in ComfyUI/input."
+  },
+  "_overrides": {
+    "prompt": "6.inputs.text",
+    "seed": "13.inputs.seed",
+    "steps": "13.inputs.steps",
+    "guidance": "17.inputs.guidance",
+    "control_strength": "33.inputs.strength",
+    "cn_end": "33.inputs.end_percent",
+    "canny_low": "30.inputs.low_threshold",
+    "canny_high": "30.inputs.high_threshold",
+    "image": "4.inputs.image",
+    "width": "20.inputs.width",
+    "height": "20.inputs.height",
+    "lat_width": "5.inputs.width",
+    "lat_height": "5.inputs.height",
+    "cn_type": "32.inputs.type",
+    "flux_unet": "12.inputs.unet_name",
+    "clip_l": "11.inputs.clip_name1",
+    "t5": "11.inputs.clip_name2",
+    "flux_vae": "10.inputs.vae_name",
+    "controlnet": "31.inputs.control_net_name"
+  },
+  "graph": {
+    "4":  { "class_type": "LoadImage", "inputs": { "image": "heart_bw.png" } },
+    "20": { "class_type": "ImageScale", "inputs": { "upscale_method": "lanczos", "width": 1024, "height": 736, "crop": "disabled", "image": ["4", 0] } },
+    "30": { "class_type": "Canny", "inputs": { "image": ["20", 0], "low_threshold": 0.2, "high_threshold": 0.4 } },
+    "31": { "class_type": "ControlNetLoader", "inputs": { "control_net_name": "flux-union-pro-2.0.safetensors" } },
+    "32": { "class_type": "SetShakkerLabsUnionControlNetType", "inputs": { "control_net": ["31", 0], "type": "canny" } },
+    "10": { "class_type": "VAELoader", "inputs": { "vae_name": "flux_vae.safetensors" } },
+    "11": { "class_type": "DualCLIPLoader", "inputs": { "clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn.safetensors", "type": "flux" } },
+    "12": { "class_type": "UnetLoaderGGUF", "inputs": { "unet_name": "flux1-dev-Q4_K_S.gguf" } },
+    "6":  { "class_type": "CLIPTextEncode", "inputs": { "text": "a clean professional minimalist logo of a stylized heart intertwined with an elegant flowing cursive monogram, modern brand mark, smooth confident vector linework with refined calligraphic weight, balanced elegant composition, pure white background, crisp solid black ink, sophisticated, timeless, flat vector design", "clip": ["11", 0] } },
+    "17": { "class_type": "FluxGuidance", "inputs": { "guidance": 3.5, "conditioning": ["6", 0] } },
+    "16": { "class_type": "ConditioningZeroOut", "inputs": { "conditioning": ["6", 0] } },
+    "33": { "class_type": "ControlNetApplyAdvanced", "inputs": { "positive": ["17", 0], "negative": ["16", 0], "control_net": ["32", 0], "image": ["30", 0], "strength": 0.6, "start_percent": 0.0, "end_percent": 0.75, "vae": ["10", 0] } },
+    "5":  { "class_type": "EmptySD3LatentImage", "inputs": { "width": 1024, "height": 736, "batch_size": 1 } },
+    "13": { "class_type": "KSampler", "inputs": { "seed": 0, "steps": 24, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": ["12", 0], "positive": ["33", 0], "negative": ["33", 1], "latent_image": ["5", 0] } },
+    "8":  { "class_type": "VAEDecode", "inputs": { "samples": ["13", 0], "vae": ["10", 0] } },
+    "9":  { "class_type": "SaveImage", "inputs": { "filename_prefix": "heart_logo_flux", "images": ["8", 0] } }
+  }
+}

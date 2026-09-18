@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "name": "pano_upscale_esrgan",
+    "description": "Deterministic 4x ESRGAN upscale for equirectangular panoramas (no diffusion). LoadImage -> RealESRGAN_x4plus -> SaveImage. Built for The Archive U1 (skybox to >=8K per Apple's 40ppd guidance); works for any image. ComfyUI tiles the upscale internally, so VRAM cost is minimal.",
+    "required_models": [
+      "upscale_models/RealESRGAN_x4plus.pth"
+    ],
+    "required_nodes": [
+      "LoadImage",
+      "UpscaleModelLoader",
+      "ImageUpscaleWithModel",
+      "SaveImage"
+    ],
+    "notes": "'image' is a filename in ComfyUI/input (stage the pano there first). Output lands in ComfyUI/output as PNG. 4x is fixed by the model (2048x1024 -> 8192x4096). Deterministic: same input -> same output, no seed. For equirect sources, verify the wrap seam after upscaling - the left/right edges are processed in different tiles, so run a seam check (column continuity at u=0/1) before shipping."
+  },
+  "_overrides": {
+    "image": "1.inputs.image",
+    "upscale_model": "2.inputs.model_name",
+    "filename_prefix": "4.inputs.filename_prefix"
+  },
+  "graph": {
+    "1": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "pano09_sora_d50_seamless.png"
+      }
+    },
+    "2": {
+      "class_type": "UpscaleModelLoader",
+      "inputs": {
+        "model_name": "RealESRGAN_x4plus.pth"
+      }
+    },
+    "3": {
+      "class_type": "ImageUpscaleWithModel",
+      "inputs": {
+        "upscale_model": [
+          "2",
+          0
+        ],
+        "image": [
+          "1",
+          0
+        ]
+      }
+    },
+    "4": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "pano_upscale_4x",
+        "images": [
+          "3",
+          0
+        ]
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "name": "scene_video_ltx2",
-    "description": "LTX-2.3 GGUF two-stage IMAGE-to-video by default (start frame = the supplied image_input path; set i2v_bypass=true for pure text-to-video), portrait 9:16 (768x1344), 121 frames @ 24fps. Verified local on RTX 4080 16GB. Stage1 base model cfg=4 LTXVScheduler (8 steps -- the quality/speed sweet spot: ~2.5min/5s, ~5.2min/10s, vs 20 steps for marginal gain); stage2 distilled-LoRA cfg=1 refine + x2 latent upscale. Override `steps` to tune stage-1.",
+    "description": "LTX-2.3 GGUF two-stage IMAGE-to-video by default (start frame = the supplied image_input path; set i2v_bypass=true for pure text-to-video), portrait 9:16 (768x1344), 241 frames @ 24fps (~10s). Stage1 base model cfg=4 LTXVScheduler (8 steps -- the quality/speed sweet spot: ~2.5min/5s, ~5.2min/10s, vs 20 steps for marginal gain); stage2 distilled-LoRA cfg=1 refine + x2 latent upscale. Override `frames` (node 10.value, must be 8n+1: 121=~5s, 241=~10s) and `steps` to tune. NOTE: 10s + I2V + x2 upscale is near the 16GB VRAM ceiling -- the x2 upscale is the peak; if it OOMs, drop frames back to 121.",
     "required_models": [
       "unet/ltx-2.3-22b-dev-Q3_K_S.gguf",
       "text_encoders/gemma-3-12b-it-Q4_K_M.gguf",
@@ -124,7 +124,7 @@
     },
     "10": {
       "inputs": {
-        "value": 121
+        "value": 241
       },
       "class_type": "PrimitiveInt"
     },
